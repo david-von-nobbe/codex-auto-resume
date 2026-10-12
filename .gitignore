@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+chatgpt_firefox_profile/
+chatgpt_profile/
