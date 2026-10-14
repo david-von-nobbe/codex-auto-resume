@@ -35,7 +35,13 @@ def resume_local_thread():
         print("Error: Invalid time format. Please use HH:MM. Exiting.")
         sys.exit(1)
 
-    prompt_text = "Du wurdest durch das Ratenlimit unterbrochen. Bitte fahre exakt an der Stelle fort, an der du aufgehört hast."
+    default_prompt = "Du wurdest durch das Ratenlimit unterbrochen. Bitte fahre exakt an der Stelle fort, an der du aufgehört hast."
+    
+    # Custom prompt input with fallback
+    custom_prompt = input("\nEnter prompt (or press ENTER to use default resume message):\n> ").strip()
+    prompt_text = custom_prompt if custom_prompt else default_prompt
+    
+    print(f"\n[Info] Using prompt: \"{prompt_text}\"")
 
     # 2. Precise Sleep Calculation
     now = datetime.now()
@@ -46,7 +52,7 @@ def resume_local_thread():
         
     sleep_seconds = (target_datetime - now).total_seconds()
     
-    print(f"\n[Info] Current time: {now.strftime('%H:%M:%S')}")
+    print(f"[Info] Current time: {now.strftime('%H:%M:%S')}")
     print(f"[Info] Target wake time: {target_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"[Info] Sleeping for {sleep_seconds / 3600:.2f} hours (plus 1-min safety buffer)...")
     
@@ -54,28 +60,31 @@ def resume_local_thread():
 
     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Waking up to attempt resuming thread {thread_id}...")
 
-    # 3. Retry Loop with Timeout Protection (Max 3 attempts)
+    # 3. Retry Loop with Server Warm-Up & Timeout Protection
     max_attempts = 3
     attempt = 1
     
     while attempt <= max_attempts:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Attempt {attempt} of {max_attempts}...")
         
-        # Clear the lock file before attempting to attach
+        # Clear any existing lock file
         release_thread_lock(thread_id)
         
         try:
             with Codex() as codex:
+                print("Warming up local Codex daemon...")
                 thread = codex.thread_resume(thread_id)
-                print("Sending resume prompt (with a 30-second timeout)...")
                 
-                # Use ThreadPoolExecutor to prevent hanging if rate limit blocks the server
+                # Give the local server 3 seconds to fully initialize the thread session
+                time.sleep(3)
+                
+                print("Sending resume prompt (with 30s timeout)...")
+                
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(thread.run, prompt_text)
                     response = future.result(timeout=30)
                 
                 print("\n--- Success! Prompt sent and response received ---")
-                # Correct attribute for openai-codex TurnResult
                 if hasattr(response, 'final_response') and response.final_response:
                     print(response.final_response[:200] + "...")
                 else:
@@ -83,7 +92,7 @@ def resume_local_thread():
                 return
                 
         except TimeoutError:
-            print(f"Attempt {attempt} timed out. Rate limit likely still active (server is hanging).")
+            print(f"Attempt {attempt} timed out. Server hung or rate limit still active.")
         except Exception as e:
             print(f"Attempt {attempt} failed. Reason: {e}")
             
