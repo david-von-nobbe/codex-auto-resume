@@ -37,11 +37,28 @@ def resume_local_thread():
 
     default_prompt = "Du wurdest durch das Ratenlimit unterbrochen. Bitte fahre exakt an der Stelle fort, an der du aufgehört hast."
     
-    # Custom prompt input with fallback
-    custom_prompt = input("\nEnter prompt (or press ENTER to use default resume message):\n> ").strip()
-    prompt_text = custom_prompt if custom_prompt else default_prompt
+    # Multi-line prompt input
+    print("\nEnter custom prompt (Type multi-line text freely, type 'DONE' on a new line when finished).")
+    print("Or just press ENTER immediately to use the default resume message:")
     
-    print(f"\n[Info] Using prompt: \"{prompt_text}\"")
+    prompt_lines = []
+    first_line = input("> ")
+    
+    if not first_line.strip():
+        prompt_text = default_prompt
+    else:
+        prompt_lines.append(first_line)
+        while True:
+            try:
+                line = input()
+                if line.strip() == "DONE":
+                    break
+                prompt_lines.append(line)
+            except EOFError:
+                break
+        prompt_text = "\n".join(prompt_lines)
+    
+    print(f"\n[Info] Selected prompt preview: \"{prompt_text[:100]}...\"")
 
     # 2. Precise Sleep Calculation
     now = datetime.now()
